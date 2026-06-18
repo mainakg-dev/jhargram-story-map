@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jhargram Tourist Story Map · Improved</title>
+
+    <!-- Leaflet CSS (stable) -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <!-- Optional: slightly nicer fonts -->
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Roboto, Arial, sans-serif;
+        background: #eef3e8;
+      }
+      /* HEADER with better contrast */
+      .header {
+        background: #0b3d2e;
+        text-align: center;
+        padding: 22px 15px;
+        border-bottom: 4px solid #c9a959;
+      }
+      .header h1 {
+        color: #e2f0d9;
+        margin: 0;
+        font-size: clamp(20px, 5vw, 32px);
+        font-weight: 500;
+        letter-spacing: 1px;
+      }
+      .header h3 {
+        color: #fadf8a;
+        margin: 8px 0 0;
+        font-weight: 400;
+        font-size: 1.2rem;
+        text-transform: uppercase;
+      }
+
+      /* MAIN FLEX LAYOUT */
+      .main {
+        display: flex;
+        flex-direction: row;
+        height: 520px; /* fixed height for map+panel */
+        box-shadow: 0 4px 12px rgba(0, 20, 0, 0.1);
+      }
+      #map {
+        width: 50%;
+        height: 100%;
+        background: #c8e0c0; /* fallback while loading */
+      }
+      .right-panel {
+        width: 50%;
+        display: flex;
+        flex-direction: column;
+        background: #ffffff;
+        border-left: 3px solid #b0c4a2;
+      }
+      .image-box {
+        height: 50%;
+        background: #2d4a36; /* match heritage green */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .image-box img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: opacity 0.2s;
+      }
+      /* fallback placeholder style (if image fails) */
+      .image-box img.placeholder-fallback {
+        object-fit: contain;
+        background: #1f3b2c;
+        padding: 10px;
+        opacity: 0.9;
+      }
+      .description {
+        height: 50%;
+        padding: 18px 22px;
+        overflow-y: auto;
+        background: #fcfef9;
+        border-top: 2px solid #cfdfc5;
+        line-height: 1.5;
+      }
+      .description h3 {
+        margin: 0 0 12px 0;
+        color: #1d543c;
+        border-bottom: 2px dashed #b3cfaa;
+        padding-bottom: 6px;
+      }
+      .description p {
+        margin: 0;
+        color: #2a3e2f;
+        font-size: 1.05rem;
+      }
+
+      /* LIST SECTION (clickable spots) */
+      .list-section {
+        padding: 25px 20px 30px;
+        background: #dde8d5;
+      }
+      .list-section h2 {
+        text-align: center;
+        margin-top: 0;
+        margin-bottom: 25px;
+        color: #1b4b33;
+        font-weight: 500;
+        font-size: 2rem;
+        letter-spacing: 1px;
+        text-shadow: 1px 1px 0 #f3f9ee;
+      }
+      .spot-list {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .spot-item {
+        background: white;
+        padding: 12px 22px;
+        border-radius: 40px; /* pill shape */
+        cursor: pointer;
+        box-shadow: 0 4px 8px rgba(0, 40, 0, 0.15);
+        font-weight: 500;
+        color: #1b4b33;
+        border: 2px solid transparent;
+        transition: all 0.2s ease;
+        font-size: 1.1rem;
+      }
+      .spot-item:hover {
+        background: #cbe5cb;
+        border-color: #5b8c5a;
+        transform: scale(1.02);
+        box-shadow: 0 8px 14px rgba(30, 80, 20, 0.25);
+      }
+
+      /* leaflet custom popup (optional) */
+      .leaflet-popup-content {
+        font-size: 1rem;
+        color: #1d3b2a;
+      }
+
+      /* responsive: stack on narrow screens */
+      @media (max-width: 700px) {
+        .main {
+          flex-direction: column;
+          height: auto;
+        }
+        #map {
+          width: 100%;
+          height: 380px;
+        }
+        .right-panel {
+          width: 100%;
+          height: 450px;
+          border-left: none;
+          border-top: 3px solid #b0c4a2;
+        }
+      }
+
+      /* ABOUT SECTION Styling */
+      .about-section {
+        background: linear-gradient(135deg, #1b4b33 0%, #0b3d2e 100%);
+        padding: 60px 20px;
+        color: #eef3e8;
+        border-top: 4px solid #c9a959;
+      }
+      .about-container {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      .about-card {
+        background: rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 40px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 40px;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+        transition:
+          transform 0.3s ease,
+          box-shadow 0.3s ease;
+      }
+      .about-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4);
+        border-color: rgba(201, 169, 89, 0.3);
+      }
+      .about-avatar-wrapper {
+        position: relative;
+        flex-shrink: 0;
+        width: 180px;
+        height: 180px;
+      }
+      .about-avatar {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 4px solid #c9a959;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        background: #0b3d2e;
+        transition: transform 0.5s ease;
+      }
+      .about-card:hover .about-avatar {
+        transform: rotate(5deg) scale(1.05);
+      }
+      .badge-gis {
+        position: absolute;
+        bottom: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #c9a959;
+        color: #0b3d2e;
+        font-weight: bold;
+        font-size: 0.85rem;
+        padding: 6px 14px;
+        border-radius: 20px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        white-space: nowrap;
+      }
+      .about-content {
+        flex-grow: 1;
+      }
+      .about-title {
+        font-size: 0.95rem;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #fadf8a;
+        margin: 0 0 8px 0;
+        font-weight: 600;
+      }
+      .about-name {
+        font-size: 2.2rem;
+        color: #ffffff;
+        margin: 0 0 10px 0;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+      .about-subtitle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1.15rem;
+        color: #e2f0d9;
+        margin: 0 0 15px 0;
+        font-weight: 500;
+      }
+      .icon-sub {
+        width: 18px;
+        height: 18px;
+        stroke: #c9a959;
+      }
+      .about-text {
+        font-size: 1.05rem;
+        line-height: 1.6;
+        color: #d1dfcc;
+        margin: 0 0 25px 0;
+      }
+      .about-contact-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+      }
+      .contact-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 20px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+        text-decoration: none;
+        border-radius: 30px;
+        font-weight: 500;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+      }
+      .contact-item .icon {
+        width: 18px;
+        height: 18px;
+        transition: transform 0.2s ease;
+      }
+      .contact-item:hover {
+        background: #c9a959;
+        color: #0b3d2e;
+        border-color: #c9a959;
+        transform: translateY(-2px);
+      }
+      .contact-item:hover .icon {
+        transform: scale(1.15);
+      }
+      .contact-item:active {
+        transform: translateY(0);
+      }
+
+      /* responsive about section */
+      @media (max-width: 768px) {
+        .about-card {
+          flex-direction: column;
+          text-align: center;
+          padding: 30px 20px;
+          gap: 30px;
+        }
+        .about-subtitle {
+          justify-content: center;
+        }
+        .about-contact-list {
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>JHARGRAM DISTRICT · HERITAGE & NATURE</h1>
+      <h3>✨ Explore the royal past & wild beauty ✨</h3>
+    </div>
+
+    <div class="main">
+      <!-- Map container -->
+      <div id="map"></div>
+
+      <!-- Right panel: image + description (dynamic) -->
+      <div class="right-panel">
+        <div class="image-box">
+          <img
+            id="spotImage"
+            src="./public/jgm.jpeg"
+            alt="Tourist spot"
+            onerror="
+              this.onerror = null;
+              this.src =
+                'https://via.placeholder.com/600x400/2d5a3a/ffffff?text=Jhargram+View';
+              this.classList.add('placeholder-fallback');
+            "
+          />
+        </div>
+        <div class="description" id="spotDescription">
+          <h3>🌿 Jhargram welcomes you</h3>
+          <p>
+            Jhargram, the crown jewel of Jangalmahal, is a mesmerizing
+            destination where royal heritage, ancient temples, dense forests,
+            sparkling rivers, scenic waterfalls, wildlife, and vibrant tribal
+            culture come together to create an unforgettable tourism experience.
+            From the majestic Jhargram Raj Palace to the serene forests of
+            Belpahari, from the sacred Kanak Durga Temple to the breathtaking
+            Ghagra Waterfall, every corner of Jhargram tells a story of history,
+            nature, spirituality, and adventure. This Story Map explores the
+            diverse tourist attractions that make Jhargram one of the most
+            beautiful and culturally rich destinations in West Bengal. 🌿🏰
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="list-section">
+      <h2>JHARGRAM TOURIST SPOTS</h2>
+      <div class="spot-list" id="spotList"></div>
+    </div>
+
+    <!-- ABOUT DEVELOPER SECTION -->
+    <div class="about-section" id="about">
+      <div class="about-container">
+        <div class="about-card">
+          <div class="about-avatar-wrapper">
+            <img
+              class="about-avatar"
+              src="./public/pratim.jpeg"
+              alt="Pratim Bera"
+            />
+            <div class="badge-gis">GIS Specialist</div>
+          </div>
+          <div class="about-content">
+            <h2 class="about-title">About the Map Creator</h2>
+            <h3 class="about-name">Pratim Bera</h3>
+            <p class="about-subtitle">
+              <svg
+                class="icon-sub"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                ></path>
+              </svg>
+              M.Sc. in Remote Sensing & GIS
+            </p>
+            <p class="about-text">
+              This interactive story map of Jhargram's heritage and natural
+              spots was developed to combine cartographic precision with
+              user-friendly travel insights. Specializing in spatial analysis,
+              remote sensing, and geographic information systems to bring
+              geographic data to life.
+            </p>
+            <div class="about-contact-list">
+              <a
+                href="mailto:pratimbera2003@gmail.com"
+                class="contact-item btn-email"
+              >
+                <svg
+                  class="icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
+                  ></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                <span>pratimbera2003@gmail.com</span>
+              </a>
+              <a href="tel:+917364857206" class="contact-item btn-phone">
+                <svg
+                  class="icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+                  ></path>
+                </svg>
+                <span>+91 73648 57206</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaflet JS (latest 1.x) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+      (function () {
+        // ----- INIT MAP (focused on Jhargram region) -----
+        const map = L.map("map").setView([22.465, 86.92], 10); // better overview
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 18,
+        }).addTo(map);
+
+        // ----- TOURIST SPOTS (cleaned + fallback image handling) -----
+        const spots = [
+          {
+            name: "Jhargram Raj Palace",
+            lat: 22.45,
+            lng: 86.99,
+            image: "./public/Jhargram_Rajpalace.jpg",
+            desc: "Jhargram Raj Palace, also known as Jhargram Rajbari, is the most iconic heritage landmark of Jhargram district. The palace is the residence of the Malla Deb royal family and represents the rich history and royal heritage of the Jangalmahal region. The present palace was commissioned in 1931 during the reign of Raja Narasingha Malla Deb and is a magnificent example of Indo-Saracenic architecture, surrounded by beautifully landscaped gardens and lawns. Part of the palace has been converted into a heritage tourism property, allowing visitors to experience royal hospitality and explore the cultural legacy of Jhargram.",
+          },
+          {
+            name: "Jhargram Ramakrishna Mission",
+            lat: 22.455,
+            lng: 86.995,
+            image:
+              "https://jhargram.zohosites.in/024ae27e-ab15-4e6a-af58-249f4a3448ca.jpeg.jpg",
+            desc: "Ramakrishna Mission Ashrama, Jhargram is a branch center of the Ramakrishna Mission under Ramakrishna Mission. The Ashrama is dedicated to spiritual development, education, tribal welfare, and social service. It plays an important role in the educational upliftment of the Jangalmahal region through schools, coaching centers, and residential educational institutions for tribal students. The peaceful campus, prayer hall, temple, and green surroundings make it a place of spiritual reflection and learning. The Jhargram branch officially started functioning in 2017.",
+          },
+          {
+            name: "Jhargram Deer Park",
+            lat: 22.4544,
+            lng: 86.9983,
+            image:
+              "https://www.jhargramtourism.com/gallery/westbengal/mukutmanipur/8.jpg",
+            desc: "Jhargram Deer Park, officially known as Junglemahal Zoological Park, is one of the most popular tourist attractions in Jhargram district. Established as a Deer Park in 1980, it later developed into a zoological park showcasing the biodiversity of the Jangalmahal region. The park is home to deer, peacocks, bears, crocodiles, rabbits, monkeys, birds, and other wildlife in a natural forest environment. It is an ideal destination for families, students, wildlife enthusiasts, and nature lovers.",
+          },
+          {
+            name: "Krish Garden",
+            lat: 22.427,
+            lng: 86.934,
+            image: "https://i.ytimg.com/vi/X7ZVC7h9bkQ/sddefault.jpg",
+            desc: "Krish Garden is a popular recreational and eco-tourism park located in the Jangal Khas–Salboni area of Jhargram district. Spread over about 10 acres, the garden features beautifully landscaped grounds, colorful flowers, decorative sculptures, an aquarium, children's amusement facilities, and picnic areas. It has become a favorite destination for family outings, photography, nature walks, and weekend relaxation. The park is easily accessible from Jhargram town and NH-6, making it a convenient stop for tourists exploring the Jangalmahal region.",
+          },
+          {
+            name: "Belpahari Forest",
+            lat: 22.53,
+            lng: 86.75,
+            image:
+              "https://www.swarnabdutta.com/wp-content/uploads/2022/05/Belpahari-Forest-View.jpeg",
+            desc: "Belpahari Forest is one of the most scenic forest regions in Jhargram district, located in the northern part of Jangalmahal. Surrounded by sal, mahua, teak, and piyal forests, the area is known for its rolling hills, tribal villages, waterfalls, reservoirs, and rich biodiversity. Belpahari serves as the gateway to many famous tourist destinations such as Kankrajhor Forest, Ghagra Waterfall, Tarafeni Barrage, Laljal Cave, and Gadrasini Hill. The peaceful environment, dense greenery, and picturesque landscapes make it a paradise for nature lovers and eco-tourists.",
+          },
+          {
+            name: "Ghagra Waterfall",
+            lat: 22.646,
+            lng: 86.733,
+            image:
+              "https://content3.jdmagicbox.com/comp/midnapore/b9/9999p3222.3222.170927131504.l6b9/catalogue/ghagra-waterfalls-midnapore-tourist-attraction-d2i5zydmh7.jpg",
+            desc: "Ghagra Waterfall is one of the most picturesque natural attractions in the Belpahari region of Jhargram district, West Bengal. Formed by the Tarafeni River flowing over large rock formations, the waterfall is surrounded by dense sal forests, hills, and rugged terrain. During the monsoon and post-monsoon seasons, the waterfall comes alive with cascading water, creating a breathtaking landscape. It is a popular destination for nature lovers, photographers, trekkers, and eco-tourists seeking the beauty of Jangalmahal.",
+          },
+          {
+            name: "Laljal Cave",
+            lat: 22.56,
+            lng: 86.73,
+            image:
+              "https://akm-img-a-in.tosshub.com/lingo/atbn/images/photo_gallery/202109/durga_puja_2021_jhargram_laljal_cave_is_getting_ready_abk_one_five.jpg",
+            desc: "Laljal Cave is a unique archaeological and eco-tourism site located near Belpahari in Jhargram district, West Bengal. Situated on Deopahar Hill, the cave is believed to have been inhabited by prehistoric humans thousands of years ago. Archaeological excavations have uncovered stone tools and other remnants of ancient civilization, making it an important heritage site. The cave is surrounded by forests, hills, and rocky landscapes, offering visitors a blend of history, adventure, and natural beauty. The name Laljal (Red Water) is believed to originate from the reddish color once found in local spring water due to the presence of iron and copper minerals.",
+          },
+          {
+            name: "Kankrajhor Forest",
+            lat: 22.558,
+            lng: 86.717,
+            image:
+              "https://www.nomadicweekends.com/wp-content/uploads/2020/01/Forest-Kakrajhore.jpg",
+            desc: "Kankrajhor Forest is a beautiful forested region located in the Belpahari area of Jhargram district, West Bengal. Nestled at the foothills of the Eastern Ghats, the forest is known for its dense sal, teak, and mixed deciduous vegetation, rolling hills, and rich biodiversity. The area offers breathtaking views of the surrounding landscapes and serves as a habitat for various wildlife species, including elephants, deer, wild boars, and numerous bird species. Kankrajhor is a popular destination for nature lovers, trekkers, photographers, and eco-tourists seeking tranquility amidst nature.",
+          },
+          {
+            name: "Ketki Lake",
+            lat: 22.617,
+            lng: 86.76,
+            image: "https://holaciti.com/assets/place/1765987801place.webp",
+            desc: "Ketki Lake is a serene freshwater lake located near Belpahari in Jhargram district, West Bengal. Surrounded by lush greenery, small hills, and forested landscapes, the lake offers a peaceful retreat for nature lovers and tourists. Its calm waters reflect the surrounding scenery, creating a picturesque environment ideal for photography, birdwatching, and relaxation. The tranquil atmosphere and natural beauty make Ketki Lake an emerging eco-tourism destination in the Jangalmahal region.",
+          },
+          {
+            name: "Handiburu Hill",
+            lat: 22.565,
+            lng: 86.65,
+            image:
+              "https://alafiia.com/wp-content/uploads/2025/08/jpeg-optimizer_Jhargram-SIghtseens-3.jpg",
+            desc: "Handiburu Hill is one of the highest and most scenic hill destinations in the Belpahari region of Jhargram district, West Bengal. Located near the border of West Bengal and Jharkhand, the hill offers panoramic views of dense forests, rolling hills, and the picturesque landscapes of the Jangalmahal region. The area is rich in natural beauty and attracts trekkers, adventure enthusiasts, photographers, and nature lovers. During sunrise and sunset, the hill provides spectacular views, making it a popular eco-tourism destination.",
+          },
+          {
+            name: "Tarafeni Barrage",
+            lat: 22.635,
+            lng: 86.728,
+            image:
+              "https://indiano.travel/wp-content/uploads/2024/10/Tarafeni-Barrage-2.jpg",
+            desc: "Tarafeni Barrage is a scenic water reservoir built across the Tarafeni River near Belpahari in Jhargram district, West Bengal. Surrounded by dense forests, rolling hills, and picturesque landscapes, the barrage serves both irrigation and tourism purposes. The tranquil waters, lush greenery, and peaceful environment make it a popular destination for nature lovers, photographers, and weekend travelers. Visitors can enjoy breathtaking views of the reservoir and the surrounding Jangalmahal region, especially during the monsoon and winter seasons.",
+          },
+          {
+            name: "Chilkigarh Raj Palace",
+            lat: 22.44,
+            lng: 86.87,
+            image: "./public/Chilkigarh_Rajbari.jpg",
+            desc: "Chilkigarh Raj Palace, also known as Chilkigarh Rajbari, is a historic royal residence located in the Chilkigarh area of Jhargram district, West Bengal. Once the seat of the Chilkigarh royal family, the palace is surrounded by dense forests and lies near the picturesque Dulung River. Although much of the palace is now in ruins, its architectural remnants reflect the grandeur of a bygone era. The site is closely associated with the famous Kanak Durga Temple, making it an important destination for both heritage and religious tourism.",
+          },
+          {
+            name: "Kanak Durga Temple",
+            lat: 22.443,
+            lng: 86.885,
+            image: "./public/Chilkigarh_Kanak_Durga_Temple.jpg",
+            desc: "Kanak Durga Temple is one of the most famous religious and historical landmarks in Jhargram district, located at Chilkigarh on the banks of the Dulung River. The temple is dedicated to Goddess Kanak Durga and is surrounded by dense forests, creating a unique blend of spirituality and natural beauty. The present temple was built in the 18th century by the Chilkigarh royal family. The site attracts thousands of devotees and tourists every year, especially during Durga Puja and other religious festivals.",
+          },
+          {
+            name: "Gopiballavpur Eco Park",
+            lat: 22.215,
+            lng: 87.065,
+            image:
+              "https://www.jhargrameshani.com/assets/images/ecopark4-2000x1385.jpg",
+            desc: "Gopiballavpur Eco Park is a popular eco-tourism destination located in the Gopiballavpur region of Jhargram district, West Bengal. Situated near the scenic banks of the Subarnarekha River, the park is surrounded by lush greenery, forests, landscaped gardens, and natural beauty. It offers visitors a peaceful environment for relaxation, nature walks, photography, and family outings. The park showcases the ecological richness of the Jangalmahal region and serves as an important recreational spot for both local residents and tourists.",
+          },
+          {
+            name: "Radha Govinda Temple (Gupta Vrindavan)",
+            lat: 22.215,
+            lng: 87.073,
+            image:
+              "./public/radha-gobinda-mandir-gopiballavpur-midnapore-temples-eg7BTpItdY.avif",
+            desc: "Radha Govinda Mandir is one of the most important Vaishnava pilgrimage sites in Jhargram district. Located in Gopiballavpur, the temple is popularly known as Gupta Vrindavan among devotees. According to local tradition, the temple was established by the Vaishnava saint Shyamananda Mahaprabhu around the 15th century. The temple houses the deities of Shri Radha Govinda, Radha Rani, Jagannath, Balabhadra, and Subhadra. Every year, the temple attracts thousands of devotees during Ratha Yatra, Jhulan Yatra, and other Vaishnava festivals.",
+          },
+          {
+            name: "Kutighat",
+            lat: 22.22,
+            lng: 87.0,
+            image: "./public/Kutighat.jpg",
+            desc: "Kuthighat is a scenic riverside tourist destination in the Gopiballavpur region of Jhargram district. Located on the banks of the Subarnarekha River, it is known for its peaceful natural environment, religious significance, and picnic spots. The area is associated with saints and spiritual traditions, and the famous Kali Puja festival is celebrated here every year. Visitors come to enjoy the river view, tranquil atmosphere, and beautiful landscape.",
+          },
+          {
+            name: "Beliaberah Praharaj Royal Family",
+            lat: 22.48,
+            lng: 86.92,
+            image: "./public/Beliaberah-Praharaj-Royal-Family.jpg",
+            desc: "The Beliaberah Praharaj Royal Family was one of the prominent zamindar families of the Jangalmahal region. Their ancestral residence, known as Beliaberah Rajbari, stands as a symbol of the area's rich feudal and cultural heritage. The Praharaj family played an important role in the social, cultural, and administrative history of the region. The Rajbari reflects traditional Bengali aristocratic architecture and remains an important historical landmark of Beliaberah. Historical records indicate that Beliaberah functioned as a sub-zamindari under the larger Jhargram Raj estate.",
+          },
+          {
+            name: "Bageshwar Temple",
+            lat: 22.53,
+            lng: 86.89,
+            image: "./public/Bageshwar_temple.jpg",
+            desc: "Bageshwar Temple is a revered Hindu temple located in Beliabera (Beliaberah) of Jhargram district, West Bengal. Dedicated to Lord Shiva, the temple is an important spiritual center for local devotees and attracts visitors seeking peace and religious devotion. Surrounded by the rural landscapes of Jangalmahal, the temple offers a serene atmosphere for worship and meditation. The temple becomes especially vibrant during Mahashivaratri and other Hindu festivals when devotees gather to offer prayers and participate in religious ceremonies.",
+          },
+          {
+            name: "Rameshwar Temple",
+            lat: 22.1466,
+            lng: 87.0541,
+            image:
+              "https://d3fphkxyf5o5bm.cloudfront.net/image-resize/format=webp,w=720/QwRY54Li1HMwD7oNfosyqh9P7WvpwUa367qWJGZmuh",
+            desc: "Rameshwar Temple is one of the most important ancient Shiva temples in Jhargram district. Located near the banks of the Subarnarekha River in the Nayagram–Gopiballavpur region, the temple is dedicated to Lord Shiva and is believed to have been built in the 16th century by King Chandraketu of Nayagram. The temple is constructed in the traditional Odia (Kalinga) architectural style and is a major pilgrimage center, especially during the month of Shravan and the Gangabaruni festival. Thousands of devotees visit the temple every year to offer prayers and participate in the annual fair.",
+          },
+          {
+            name: "Hatibari",
+            lat: 22.18,
+            lng: 86.93,
+            image:
+              "https://assets.telegraphindia.com/abp/2022/Mar/1648210376_new-project-2022-03-25t173724-004.jpg",
+            desc: "Hatibari is one of the most beautiful eco-tourism destinations in Jhargram district, located in the Gopiballavpur region on the banks of the Subarnarekha River. The area is covered with dense sal forests and lies near the junction of West Bengal, Odisha, and Jharkhand. Hatibari is famous for its tranquil natural environment, elephant corridor, riverside scenery, birdwatching opportunities, and forest tourism. It is an ideal destination for nature lovers, photographers, and visitors seeking a peaceful retreat amidst the forests of Jangalmahal.",
+          },
+          {
+            name: "Jhilli Pakhiralaya",
+            lat: 22.2,
+            lng: 86.98,
+            image: "https://i.ytimg.com/vi/-sfubua5GtQ/maxresdefault.jpg",
+            desc: "Jhilli Pakhiralaya is one of the most famous bird-watching destinations in Jhargram district. Located near Gopiballavpur, it consists of a large lake and wetland ecosystem surrounded by greenery. Every winter, numerous migratory birds arrive here from distant regions, making it a paradise for bird lovers, photographers, and nature enthusiasts. The site also offers boating facilities, watch towers, gardens, and eco-tourism cottages for visitors.",
+          },
+        ];
+
+        // store markers to later fit bounds
+        const markers = [];
+
+        // Helper: update right panel (image + description)
+        function updateContent(spot) {
+          const imgEl = document.getElementById("spotImage");
+          const descEl = document.getElementById("spotDescription");
+
+          // set image with fallback if wikimedia fails
+          imgEl.src = spot.image;
+          imgEl.alt = spot.name;
+          // remove any previous fallback class (will re-add if error)
+          imgEl.classList.remove("placeholder-fallback");
+          // onerror is already defined in HTML attribute, but we also handle here
+          imgEl.onerror = function () {
+            this.onerror = null; // prevent infinite loop
+            this.src =
+              "https://via.placeholder.com/600x400/2d5a3a/ffffff?text=" +
+              encodeURIComponent(spot.name);
+            this.classList.add("placeholder-fallback");
+          };
+
+          descEl.innerHTML = `<h3>🏛️ ${spot.name}</h3><p>${spot.desc}</p>`;
+        }
+
+        // ---- Add markers & populate list ----
+        spots.forEach((spot) => {
+          // create marker with a simple popup (optional)
+          const marker = L.marker([spot.lat, spot.lng], {
+            title: spot.name,
+            riseOnHover: true,
+          }).addTo(map);
+
+          // bind popup with name (brief)
+          marker.bindPopup(`<b>${spot.name}</b><br>Click for details`);
+
+          // on marker click → update panel + zoom + open popup
+          marker.on("click", function () {
+            updateContent(spot);
+            map.setView([spot.lat, spot.lng], 12); // zoom closer
+            marker.openPopup();
+          });
+
+          markers.push(marker);
+
+          // ---- add item to the bottom list ----
+          const listDiv = document.getElementById("spotList");
+          const item = document.createElement("div");
+          item.className = "spot-item";
+          item.textContent = spot.name;
+          item.setAttribute("aria-label", `Show details for ${spot.name}`);
+          item.onclick = function () {
+            updateContent(spot);
+            map.setView([spot.lat, spot.lng], 12);
+            // also trigger popup on corresponding marker
+            marker.openPopup();
+          };
+          listDiv.appendChild(item);
+        });
+
+        // ---- fit map to show all markers nicely (with padding) ----
+        if (markers.length > 0) {
+          const group = L.featureGroup(markers);
+          map.fitBounds(group.getBounds().pad(0.25)); // add some margin
+        }
+
+        // ---- extra: ensure image error fallback for initial image (already in img tag) ----
+        // also if the default image fails, it will use placeholder
+
+        // ---- small improvement: adjust map when window resizes (maintain bounds) ----
+        let resizeTimer;
+        window.addEventListener("resize", function () {
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            if (markers.length) {
+              const group = L.featureGroup(markers);
+              map.fitBounds(group.getBounds().pad(0.25), { animate: false });
+            }
+          }, 200);
+        });
+
+        // preload fallback for any missing wikimedia image (just to be safe)
+        // already done with onerror
+
+        // Optional: add scale bar
+        L.control.scale({ imperial: false, metric: true }).addTo(map);
+
+        // Add a small green compass / attribution
+        console.log("Jhargram story map ready");
+      })();
+    </script>
+
+    <!-- small note: all image URLs point to Wikimedia Commons; if any fail, a clean placeholder appears -->
+    <!-- fixed: improved initial view, fallback images, responsive, and popups -->
+  </body>
+</html>
